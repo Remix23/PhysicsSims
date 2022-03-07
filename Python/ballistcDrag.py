@@ -9,13 +9,15 @@ engine = {
     "energy_per_kg" : 10000,
 }
 
+fuel_start_mass = 90
+
 ball = {
     "pos" : [0, 0],
     "vel" : [0, 0],
     "acc" : [0, 0],
     "radius" : 1,
     "starting_mass" : 10,
-    "fuel_mass" : 90,
+    "fuel_mass" : fuel_start_mass,
     "angle" : 0,
     "drag_coefficient" : 0.45,
 }
@@ -26,6 +28,14 @@ atmosphere_data = {
     "temp" : 288,
     "pressure" : 101300,
     "density" : 0,
+}
+
+forces_to_work = {
+    "airdrag_x" : 0,
+    "airdrag_y" : 0,
+    "engine_x" : 0,
+    "engine_y" : 0,
+    "gravity" : 0,
 }
 
 """
@@ -84,7 +94,7 @@ def updateEngine (obj, engine):
     
     if d_fuel <= obj["fuel_mass"]:
         obj["fuel_mass"] -= d_fuel
-        a = engine["out_vel"] * engine["max_combustion"]
+        a = engine["out_vel"] * engine["max_combustion"] / obj["mass"]
     else:
         d_fuel = 0
         a = 0
@@ -113,6 +123,13 @@ def update (obj):
     wind_drag[0] *= wind_direction
     engine_power = updateEngine (obj, engine)
 
+    forces_to_work["airdrag_x"] = air_drag[0]
+    forces_to_work["airdrag_y"] = air_drag[1]
+    forces_to_work["gravity"] = -atm_data[0]
+    forces_to_work["engine_x"] = atm_data[0]
+    forces_to_work["engine_y"] = engine_power[1]
+
+    # update rocket properties
     obj["mass"] = obj["starting_mass"] + obj["fuel_mass"]
 
     if obj["vel"][1] > 0:
@@ -124,8 +141,8 @@ def update (obj):
     obj["acc"][0] += air_drag[0] / obj["mass"]
     obj["acc"][1] += air_drag[1] / obj["mass"]
 
-    obj["acc"][0] += engine_power[0] / obj["mass"]
-    obj["acc"][1] += engine_power[1] / obj["mass"]
+    obj["acc"][0] += engine_power[0]
+    obj["acc"][1] += engine_power[1] 
     
     obj["vel"][0] += obj["acc"][0] * time_stamp
     obj["vel"][1] += obj["acc"][1] * time_stamp
@@ -154,31 +171,44 @@ while ball["pos"][1] >= 0:
         "acc_x": ball["acc"][0],
         "acc_y": ball["acc"][1],
         "time" : time_stamp * i,
-        "fg": atmosphere_data["fg"],
-        "temp": atmosphere_data["temp"],
-        "pressure": atmosphere_data["pressure"],
-        "density": atmosphere_data["density"]
     }
+    for key, value in atmosphere_data.items():
+        packet[key] = value
+    for key, value in forces_to_work.items():
+        if len(data) > 0:
+            packet[f"w_{key}"] = value * (packet["y"] - data[-1]["y"])
+        else:
+            packet[f"w_{key}"] = 0
+        
     #print(ball)
     data.append(packet)
     update(ball)
     i += 1
 
-figure, axis = plt.subplots(3, 1)
+figure, axis = plt.subplots(3, 2)
 figure.suptitle("Flying rocket sim")
 
-axis[0].plot([x["time"] for x in data], [x["y"] for x in data])
-axis[0].set_xlabel ("time [s]")
-axis[0].set_ylabel ("y [m]")
+axis[0, 0].plot([x["time"] for x in data], [x["y"] for x in data])
+axis[0, 0].set_ylabel ("y [m]")
 
-axis[1].plot([x["time"] for x in data], [x["vel_y"] for x in data])
-axis[1].set_xlabel ("time [s]")
-axis[1].set_ylabel ("vel y [m / s]")
+axis[1, 0].plot([x["time"] for x in data], [x["vel_y"] for x in data])
+axis[1, 0].set_ylabel ("vel y [m / s]")
 
-axis[2].plot([x["time"] for x in data], [x["acc_y"] for x in data])
-axis[2].set_xlabel ("time [s]")
-axis[2].set_ylabel ("acc y [m / s*s]")
+axis[2, 0].plot([x["time"] for x in data], [x["acc_y"] for x in data])
+axis[2, 0].set_ylabel ("acc y [m / s*s]")
+
+axis[0, 1].plot([x["time"] for x in data], [x["w_gravity"] for x in data])
+axis[0, 1].set_ylabel ("W (Fg)")
+axis[1, 1].plot([x["time"] for x in data], [x["w_airdrag_y"] for x in data])
+axis[1, 1].set_ylabel ("W (Ft)")
+axis[2, 1].plot([x["time"] for x in data], [x["w_engine_y"] for x in data])
+axis[2, 1].set_ylabel ("W (Fe)")
+
+for ax in axis.flat:
+    ax.set_xlabel ('time [s]')
 
 print(f"Last Vy: {data[-1]['vel_y']}")
+print(sum([x["w_engine_y"] for x in data]))
+print(fuel_start_mass * engine["energy_per_kg"]*engine["efficiency"]) #math.sqrt(engine["efficiency"])
 
 plt.show()
