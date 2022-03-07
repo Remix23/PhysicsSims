@@ -17,7 +17,7 @@ ball = {
     "starting_mass" : 10,
     "fuel_mass" : 90,
     "angle" : 0,
-    "dragCoefficient" : 0.45,
+    "drag_coefficient" : 0.45,
 }
 
 atmosphere_data = {
@@ -74,8 +74,8 @@ ball["mass"] = ball["starting_mass"] + ball["fuel_mass"]
 def calculateDrag (obj, vel, air_density):
 
     obj_cross_section = obj["radius"]**2 * math.pi
-    drag_x = obj["dragCoefficient"] * vel[0] * vel[0] * obj_cross_section * air_density / 2
-    drag_y = obj["dragCoefficient"] * vel[1] * vel[1] * obj_cross_section * air_density / 2
+    drag_x = obj["drag_coefficient"] * vel[0] * vel[0] * obj_cross_section * air_density / 2
+    drag_y = obj["drag_coefficient"] * vel[1] * vel[1] * obj_cross_section * air_density / 2
     return [drag_x, drag_y]
 
 def updateEngine (obj, engine):
@@ -106,7 +106,7 @@ def atmosphere (obj):
 
 def update (obj):
     atm_data = atmosphere(obj)
-    obj["acc"] = [0,- atm_data[0]]
+    obj["acc"] = [0, -atm_data[0]]
     
     air_drag = calculateDrag(obj, obj["vel"], atm_data[1])
     wind_drag = calculateDrag(obj, [wind_speed, 0], atm_data[1])
@@ -115,11 +115,14 @@ def update (obj):
 
     obj["mass"] = obj["starting_mass"] + obj["fuel_mass"]
 
-    if obj["vel"][1] < 0:
+    if obj["vel"][1] > 0:
         air_drag[1] *= -1
+    
+    if obj["vel"][0] > 0:
+        air_drag[0] *= 1
 
-    obj["acc"][0] -= air_drag[0] / obj["mass"]
-    obj["acc"][1] -= air_drag[1] / obj["mass"]
+    obj["acc"][0] += air_drag[0] / obj["mass"]
+    obj["acc"][1] += air_drag[1] / obj["mass"]
 
     obj["acc"][0] += engine_power[0] / obj["mass"]
     obj["acc"][1] += engine_power[1] / obj["mass"]
